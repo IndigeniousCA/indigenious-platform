@@ -1,0 +1,7 @@
+{
+  "buildCommand": "turbo build",
+  "installCommand": "pnpm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "ignoreBuildCache": false
+}

@@ -1,0 +1,33 @@
+{
+  "name": "indigenous-platform",
+  "private": true,
+  "description": "Indigenous Procurement Platform - Monorepo",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.7.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "turbo build --filter=@indigenous/... && changeset publish",
+    "clean": "turbo clean && rm -rf node_modules",
+    "ci": "turbo build test lint",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@turbo/gen": "^2.5.6",
+    "eslint": "^8.57.0",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.5",
+    "turbo": "^2.5.6",
+    "typescript": "^5.3.3"
+  }
+}
