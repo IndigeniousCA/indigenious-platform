@@ -1,6 +1,6 @@
-# 🌲 Indigenous Platform
+# 🌲 Indigenious Platform
 
-> Modern monorepo for the Indigenous Procurement Platform
+> Modern monorepo for the Indigenious Platform
 
 ## 🚀 Quick Start
 
@@ -50,4 +50,4 @@ pnpm release
 
 ## 📄 License
 
-MIT © Indigenous Platform
+MIT © Indigenious Platform

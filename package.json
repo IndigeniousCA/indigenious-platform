@@ -1,7 +1,7 @@
 {
-  "name": "indigenous-platform",
+  "name": "indigenious-platform",
   "private": true,
-  "description": "Indigenous Procurement Platform - Monorepo",
+  "description": "Indigenious Platform - Monorepo",
   "engines": {
     "node": ">=18.0.0",
     "pnpm": ">=9.0.0"

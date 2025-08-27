@@ -3,7 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [["@indigenous/*"]],
+  "linked": [["@indigenious/*"]],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
