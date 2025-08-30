@@ -216,6 +216,10 @@ model Incident {
   severity             String   // CRITICAL, HIGH, MEDIUM, LOW
   status               String   @default("OPEN") // OPEN, INVESTIGATING, RESOLVED, CLOSED
   
+  // Service relation
+  serviceId            String?
+  service              Service? @relation(fields: [serviceId], references: [id])
+  
   // Impact
   servicesAffected     String[] // Service IDs
   usersAffected        Int      @default(0)
@@ -490,4 +494,168 @@ model TraceSpan {
   
   @@index([traceId])
   @@index([startTime])
+}// Queue-related models for infrastructure service
+
+model Queue {
+  id          String   @id @default(uuid())
+  queueName   String   @unique
+  queueType   String   @default("BULL") // BULL, RABBITMQ, KAFKA
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  jobs        Job[]
+  dlqJobs     Job[]    @relation("DLQJobs")
+}
+
+model Worker {
+  id          String   @id @default(uuid())
+  workerId    String   @unique
+  workerName  String
+  status      String   @default("IDLE") // IDLE, PROCESSING, PAUSED
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Job {
+  id           String   @id @default(uuid())
+  jobId        String   @unique
+  queueId      String
+  queue        Queue    @relation(fields: [queueId], references: [id])
+  data         Json
+  status       String   @default("pending")
+  priority     Int      @default(0)
+  attempts     Int      @default(0)
+  error        String?
+  completedAt  DateTime?
+  failedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  dlqQueue     Queue?   @relation("DLQJobs", fields: [dlqQueueId], references: [id])
+  dlqQueueId   String?
+}
+
+model ScheduledJob {
+  id           String   @id @default(uuid())
+  jobName      String   @unique
+  cronExpression String
+  queueName    String
+  data         Json?
+  enabled      Boolean  @default(true)
+  lastRunAt    DateTime?
+  nextRunAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MessageTemplate {
+  id           String   @id @default(uuid())
+  templateName String   @unique
+  subject      String?
+  body         String   @db.Text
+  variables    Json?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model QueueEvent {
+  id           String   @id @default(uuid())
+  queueId      String?
+  eventType    String
+  eventData    Json?
+  timestamp    DateTime @default(now())
+}
+
+model CircuitBreaker {
+  id           String   @id @default(uuid())
+  serviceName  String   @unique
+  state        String   @default("CLOSED") // CLOSED, OPEN, HALF_OPEN
+  failures     Int      @default(0)
+  lastFailure  DateTime?
+  resetAt      DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Customer {
+  id           String   @id @default(uuid())
+  externalId   String   @unique
+  email        String
+  provider     String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Subscription {
+  id                  String    @id @default(uuid())
+  externalId          String    @unique
+  customerId          String
+  priceId             String?
+  status              String
+  provider            String
+  metadata            Json?
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  canceledAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Payment {
+  id           String    @id @default(uuid())
+  externalId   String    @unique
+  businessId   String?
+  business     Business? @relation(fields: [businessId], references: [id])
+  amount       Float
+  currency     String
+  status       String
+  provider     String
+  metadata     Json?
+  taxAmount    Float?
+  completedAt  DateTime?
+  refundedAt   DateTime?
+  failedAt     DateTime?
+  failureReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Refund {
+  id           String   @id @default(uuid())
+  externalId   String   @unique
+  paymentId    String
+  amount       Float
+  reason       String?
+  status       String
+  provider     String
+  requestedBy  String?
+  processedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Business {
+  id                String    @id @default(uuid())
+  name              String
+  email             String?
+  phone             String?
+  address           String?
+  city              String?
+  province          String?
+  postalCode        String?
+  country           String?
+  isIndigenous      Boolean   @default(false)
+  bandNumber        String?
+  taxExemptStatus   String?
+  taxExemptNumber   String?
+  taxNumber         String?
+  isOnReserve       Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  payments          Payment[]
 }

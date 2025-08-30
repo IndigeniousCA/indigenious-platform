@@ -9,7 +9,7 @@ import { requestLogger } from './middleware/request-logger';
 import { authMiddleware } from './middleware/auth';
 import paymentRoutes from './routes/payment.routes';
 import stripeRoutes from './routes/stripe.routes';
-import paypalRoutes from './routes/paypal.routes';
+// PayPal removed - focusing on Canadian payment methods
 import interacRoutes from './routes/interac.routes';
 import quickPayRoutes from './routes/quick-pay.routes';
 import taxRoutes from './routes/tax.routes';
@@ -71,7 +71,7 @@ app.use('/health', healthRoutes);
 // API routes with authentication
 app.use('/api/v1/payments', authMiddleware, paymentLimiter, paymentRoutes);
 app.use('/api/v1/stripe', authMiddleware, paymentLimiter, stripeRoutes);
-app.use('/api/v1/paypal', authMiddleware, paymentLimiter, paypalRoutes);
+// PayPal route removed
 app.use('/api/v1/interac', authMiddleware, paymentLimiter, interacRoutes);
 app.use('/api/v1/quick-pay', authMiddleware, paymentLimiter, quickPayRoutes);
 app.use('/api/v1/tax', authMiddleware, taxRoutes);
@@ -82,11 +82,7 @@ app.post('/webhook/stripe', express.raw({ type: 'application/json' }), async (re
   await processWebhook(req, res);
 });
 
-// PayPal webhook endpoint
-app.post('/webhook/paypal', express.raw({ type: 'application/json' }), async (req, res) => {
-  const { processWebhook } = await import('./services/paypal.service');
-  await processWebhook(req, res);
-});
+// PayPal webhook removed
 
 // Error handling
 app.use(errorHandler);
@@ -123,7 +119,7 @@ async function startServer() {
     const server = app.listen(PORT, () => {
       logger.info(`Payment Service running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      logger.info('Payment providers: Stripe, PayPal, Interac');
+      logger.info('Payment providers: Stripe, Interac, Indigenous Banking');
       logger.info('Features: Quick Pay (24hr), Canadian Tax, Indigenous Preferences');
     });
 

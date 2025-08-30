@@ -158,3 +158,14 @@ export function validateCommunityAffiliation(
     community.toLowerCase() === normalizedAffiliation
   )
 }
+
+// Class wrapper for compatibility
+export class IndigenousVerificationService {
+  async verifyBusiness(businessData: BusinessData): Promise<VerificationResult> {
+    return verifyIndigenousStatus(businessData)
+  }
+  
+  isValidCommunityAffiliation(affiliation: string, type?: string): boolean {
+    return isValidCommunityAffiliation(affiliation, type)
+  }
+}

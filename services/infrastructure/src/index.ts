@@ -5,7 +5,7 @@ import { rateLimit } from 'express-rate-limit';
 import compression from 'compression';
 import { Server } from 'socket.io';
 import { createServer } from 'http';
-import { MonitoringService } from './services/monitoring.service';
+import { QueueService } from './services/queue.service';
 import { PrismaClient } from '@prisma/client';
 
 const app = express();
@@ -18,7 +18,7 @@ const io = new Server(httpServer, {
 });
 
 const prisma = new PrismaClient();
-const monitoringService = new MonitoringService();
+const queueService = new QueueService();
 
 // Middleware
 app.use(helmet());
@@ -42,18 +42,15 @@ app.use('/api', limiter);
 // Health check
 app.get('/health', async (req, res) => {
   try {
-    const services = await prisma.service.count({
-      where: { status: 'HEALTHY' }
+    const workers = await prisma.worker.findMany({
+      where: { active: true }
     });
-    
-    const totalServices = await prisma.service.count();
     
     res.json({
       status: 'healthy',
-      service: 'indigenious-monitoring-service',
+      service: 'indigenious-queue-service',
       timestamp: new Date().toISOString(),
-      healthyServices: services,
-      totalServices
+      workers: workers.length
     });
   } catch (error) {
     res.status(503).json({
@@ -63,263 +60,171 @@ app.get('/health', async (req, res) => {
   }
 });
 
-// Prometheus metrics endpoint
-app.get('/metrics', (req, res) => {
-  res.set('Content-Type', 'text/plain');
-  res.send(monitoringService.getPrometheusMetrics());
-});
-
 // API Routes
 
-// Services management
-app.post('/api/services', async (req, res) => {
+// Create queue
+app.post('/api/queues', async (req, res) => {
   try {
-    const service = await prisma.service.create({
+    const queue = await prisma.queue.create({
       data: req.body
     });
     
-    res.status(201).json(service);
+    await queueService.createQueue(queue);
+    
+    res.status(201).json(queue);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create service' 
+      error: error instanceof Error ? error.message : 'Failed to create queue' 
     });
   }
 });
 
-app.get('/api/services', async (req, res) => {
+// Get all queues
+app.get('/api/queues', async (req, res) => {
   try {
-    const services = await prisma.service.findMany({
+    const queues = await prisma.queue.findMany({
       where: { active: true },
       include: {
         _count: {
-          select: { healthChecks: true, alerts: true }
+          select: { jobs: true }
         }
       }
     });
     
-    res.json(services);
+    res.json(queues);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get services' 
+      error: error instanceof Error ? error.message : 'Failed to get queues' 
     });
   }
 });
 
-app.get('/api/services/:serviceName', async (req, res) => {
+// Add job to queue
+app.post('/api/queues/:queueName/jobs', async (req, res) => {
   try {
-    const { serviceName } = req.params;
-    const service = await monitoringService.getServiceStatus(serviceName);
+    const { queueName } = req.params;
+    const { data, options = {} } = req.body;
     
-    if (!service) {
-      return res.status(404).json({ error: 'Service not found' });
+    const jobId = await queueService.addJob(queueName, data, options);
+    
+    res.status(201).json({ jobId, queueName });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to add job' 
+    });
+  }
+});
+
+// Add bulk jobs
+app.post('/api/queues/:queueName/jobs/bulk', async (req, res) => {
+  try {
+    const { queueName } = req.params;
+    const { jobs } = req.body;
+    
+    if (!Array.isArray(jobs)) {
+      return res.status(400).json({ error: 'Jobs must be an array' });
     }
     
-    res.json(service);
+    const jobIds = await queueService.addBulkJobs(queueName, jobs);
+    
+    res.status(201).json({ 
+      jobIds, 
+      count: jobIds.length,
+      queueName 
+    });
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get service status' 
+      error: error instanceof Error ? error.message : 'Failed to add bulk jobs' 
     });
   }
 });
 
-// Health checks
-app.post('/api/services/:serviceName/check', async (req, res) => {
+// Indigenous priority job
+app.post('/api/queues/:queueName/jobs/indigenous', async (req, res) => {
   try {
-    const { serviceName } = req.params;
+    const { queueName } = req.params;
+    const { 
+      data, 
+      nation, 
+      community,
+      elderRequest = false,
+      ceremonyRelated = false,
+      culturalImportance,
+      generationalImpact = false,
+      ...options 
+    } = req.body;
     
-    const service = await prisma.service.findUnique({
-      where: { serviceName }
+    const jobId = await queueService.addJob(queueName, data, {
+      ...options,
+      indigenousJob: true,
+      nation,
+      community,
+      elderRequest,
+      ceremonyRelated,
+      culturalImportance,
+      generationalImpact,
+      priority: elderRequest ? 10 : (ceremonyRelated ? 9 : 7)
     });
     
-    if (!service) {
-      return res.status(404).json({ error: 'Service not found' });
-    }
-    
-    const result = await monitoringService.performHealthCheck(service);
-    
-    res.json(result);
+    res.status(201).json({ 
+      jobId, 
+      queueName,
+      indigenousPriority: true 
+    });
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Health check failed' 
+      error: error instanceof Error ? error.message : 'Failed to add Indigenous job' 
     });
   }
 });
 
-app.get('/api/health-checks', async (req, res) => {
+// Get job status
+app.get('/api/jobs/:jobId', async (req, res) => {
   try {
-    const { serviceId, limit = 100 } = req.query;
+    const { jobId } = req.params;
+    const job = await queueService.getJobStatus(jobId);
     
-    const checks = await prisma.healthCheck.findMany({
-      where: serviceId ? { serviceId: serviceId as string } : undefined,
-      orderBy: { timestamp: 'desc' },
-      take: parseInt(limit as string),
-      include: {
-        service: true
-      }
-    });
-    
-    res.json(checks);
+    res.json(job);
   } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get health checks' 
+    res.status(404).json({ 
+      error: error instanceof Error ? error.message : 'Job not found' 
     });
   }
 });
 
-// Alerts
-app.post('/api/alerts', async (req, res) => {
+// Cancel job
+app.delete('/api/jobs/:jobId', async (req, res) => {
   try {
-    await monitoringService.createAlert(req.body);
-    res.status(201).json({ success: true });
+    const { jobId } = req.params;
+    const result = await queueService.cancelJob(jobId);
+    
+    res.json({ success: result, jobId });
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create alert' 
+      error: error instanceof Error ? error.message : 'Failed to cancel job' 
     });
   }
 });
 
-app.get('/api/alerts', async (req, res) => {
+// Retry failed job
+app.post('/api/jobs/:jobId/retry', async (req, res) => {
   try {
-    const { status, severity } = req.query;
+    const { jobId } = req.params;
+    const result = await queueService.retryJob(jobId);
     
-    const alerts = await prisma.alert.findMany({
-      where: {
-        status: status as string,
-        severity: severity as string
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        service: true
-      }
-    });
-    
-    res.json(alerts);
+    res.json({ success: result, jobId });
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get alerts' 
+      error: error instanceof Error ? error.message : 'Failed to retry job' 
     });
   }
 });
 
-app.put('/api/alerts/:alertId/acknowledge', async (req, res) => {
+// Get queue metrics
+app.get('/api/queues/:queueName/metrics', async (req, res) => {
   try {
-    const { alertId } = req.params;
-    const { userId } = req.body;
-    
-    await monitoringService.acknowledgeAlert(alertId, userId);
-    
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to acknowledge alert' 
-    });
-  }
-});
-
-app.put('/api/alerts/:alertId/resolve', async (req, res) => {
-  try {
-    const { alertId } = req.params;
-    const { userId } = req.body;
-    
-    await monitoringService.resolveAlert(alertId, userId);
-    
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to resolve alert' 
-    });
-  }
-});
-
-// Alert rules
-app.post('/api/alert-rules', async (req, res) => {
-  try {
-    const rule = await prisma.alertRule.create({
-      data: req.body
-    });
-    
-    res.status(201).json(rule);
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create alert rule' 
-    });
-  }
-});
-
-app.get('/api/alert-rules', async (req, res) => {
-  try {
-    const rules = await prisma.alertRule.findMany({
-      where: { active: true }
-    });
-    
-    res.json(rules);
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get alert rules' 
-    });
-  }
-});
-
-// Incidents
-app.get('/api/incidents', async (req, res) => {
-  try {
-    const { status } = req.query;
-    
-    const incidents = await prisma.incident.findMany({
-      where: status ? { status: status as string } : undefined,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        alerts: true,
-        updates: {
-          orderBy: { timestamp: 'desc' },
-          take: 5
-        }
-      }
-    });
-    
-    res.json(incidents);
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get incidents' 
-    });
-  }
-});
-
-app.post('/api/incidents/:incidentId/updates', async (req, res) => {
-  try {
-    const { incidentId } = req.params;
-    
-    const update = await prisma.incidentUpdate.create({
-      data: {
-        incidentId,
-        ...req.body
-      }
-    });
-    
-    res.status(201).json(update);
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create incident update' 
-    });
-  }
-});
-
-// Metrics
-app.get('/api/metrics', async (req, res) => {
-  try {
-    const { serviceId, resourceType, hours = 24 } = req.query;
-    
-    const metrics = await prisma.metric.findMany({
-      where: {
-        serviceId: serviceId as string,
-        resourceType: resourceType as string,
-        timestamp: {
-          gte: new Date(Date.now() - parseInt(hours as string) * 3600000)
-        }
-      },
-      orderBy: { timestamp: 'desc' }
-    });
+    const { queueName } = req.params;
+    const metrics = await queueService.getQueueMetrics(queueName);
     
     res.json(metrics);
   } catch (error) {
@@ -329,239 +234,210 @@ app.get('/api/metrics', async (req, res) => {
   }
 });
 
-app.post('/api/metrics/collect', async (req, res) => {
+// Schedule job
+app.post('/api/scheduled-jobs', async (req, res) => {
   try {
-    await monitoringService.collectMetrics();
-    res.json({ success: true });
+    const jobId = await queueService.scheduleJob(req.body);
+    
+    res.status(201).json({ jobId });
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to collect metrics' 
+      error: error instanceof Error ? error.message : 'Failed to schedule job' 
     });
   }
 });
 
-// Dashboards
-app.post('/api/dashboards', async (req, res) => {
+// Get scheduled jobs
+app.get('/api/scheduled-jobs', async (req, res) => {
   try {
-    const dashboard = await prisma.dashboard.create({
-      data: req.body
+    const jobs = await prisma.scheduledJob.findMany({
+      where: { enabled: true }
     });
     
-    res.status(201).json(dashboard);
+    res.json(jobs);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create dashboard' 
+      error: error instanceof Error ? error.message : 'Failed to get scheduled jobs' 
     });
   }
 });
 
-app.get('/api/dashboards', async (req, res) => {
+// Dead letter queue operations
+app.get('/api/queues/:queueName/dlq', async (req, res) => {
   try {
-    const { indigenousDashboard } = req.query;
+    const { queueName } = req.params;
     
-    const dashboards = await prisma.dashboard.findMany({
-      where: {
-        active: true,
-        indigenousDashboard: indigenousDashboard === 'true'
+    const queue = await prisma.queue.findUnique({
+      where: { queueName },
+      include: {
+        dlqJobs: {
+          take: 100,
+          orderBy: { createdAt: 'desc' }
+        }
       }
     });
     
-    res.json(dashboards);
+    res.json(queue?.dlqJobs || []);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get dashboards' 
+      error: error instanceof Error ? error.message : 'Failed to get DLQ' 
     });
   }
 });
 
-app.get('/api/dashboards/:dashboardId', async (req, res) => {
+app.post('/api/queues/:queueName/dlq/process', async (req, res) => {
   try {
-    const { dashboardId } = req.params;
-    const data = await monitoringService.getDashboardData(dashboardId);
+    const { queueName } = req.params;
+    const count = await queueService.processDLQ(queueName);
     
-    res.json(data);
+    res.json({ 
+      processed: count,
+      queueName 
+    });
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get dashboard data' 
+      error: error instanceof Error ? error.message : 'Failed to process DLQ' 
     });
   }
 });
 
-// Notification channels
-app.post('/api/notification-channels', async (req, res) => {
+// Worker management
+app.get('/api/workers', async (req, res) => {
   try {
-    const channel = await prisma.notificationChannel.create({
-      data: req.body
-    });
-    
-    res.status(201).json(channel);
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create notification channel' 
-    });
-  }
-});
-
-app.get('/api/notification-channels', async (req, res) => {
-  try {
-    const channels = await prisma.notificationChannel.findMany({
+    const workers = await prisma.worker.findMany({
       where: { active: true }
     });
     
-    res.json(channels);
+    res.json(workers);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get notification channels' 
+      error: error instanceof Error ? error.message : 'Failed to get workers' 
     });
   }
 });
 
-// SLAs
-app.post('/api/slas', async (req, res) => {
+app.put('/api/workers/:workerId/pause', async (req, res) => {
   try {
-    const sla = await prisma.sLA.create({
+    const { workerId } = req.params;
+    
+    await prisma.worker.update({
+      where: { workerId },
+      data: { status: 'PAUSED' }
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to pause worker' 
+    });
+  }
+});
+
+app.put('/api/workers/:workerId/resume', async (req, res) => {
+  try {
+    const { workerId } = req.params;
+    
+    await prisma.worker.update({
+      where: { workerId },
+      data: { status: 'IDLE' }
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to resume worker' 
+    });
+  }
+});
+
+// Message templates
+app.post('/api/templates', async (req, res) => {
+  try {
+    const template = await prisma.messageTemplate.create({
       data: req.body
     });
     
-    res.status(201).json(sla);
+    res.status(201).json(template);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to create SLA' 
+      error: error instanceof Error ? error.message : 'Failed to create template' 
     });
   }
 });
 
-app.get('/api/slas', async (req, res) => {
+app.get('/api/templates', async (req, res) => {
   try {
-    const slas = await prisma.sLA.findMany({
-      where: { active: true },
-      include: {
-        reports: {
-          orderBy: { createdAt: 'desc' },
-          take: 1
-        }
-      }
+    const templates = await prisma.messageTemplate.findMany({
+      where: { active: true }
     });
     
-    res.json(slas);
+    res.json(templates);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get SLAs' 
+      error: error instanceof Error ? error.message : 'Failed to get templates' 
     });
   }
 });
 
-// System resources
-app.get('/api/system-resources', async (req, res) => {
+// Events
+app.get('/api/events', async (req, res) => {
   try {
-    const { hostname, resourceType } = req.query;
-    
-    const resources = await prisma.systemResource.findMany({
-      where: {
-        hostname: hostname as string,
-        resourceType: resourceType as string
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 100
+    const events = await prisma.queueEvent.findMany({
+      take: 100,
+      orderBy: { timestamp: 'desc' }
     });
     
-    res.json(resources);
+    res.json(events);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get system resources' 
+      error: error instanceof Error ? error.message : 'Failed to get events' 
     });
   }
 });
 
-// Logs
-app.get('/api/logs', async (req, res) => {
+// Circuit breaker status
+app.get('/api/circuit-breakers', async (req, res) => {
   try {
-    const { level, source, hours = 1 } = req.query;
+    const breakers = await prisma.circuitBreaker.findMany();
     
-    const logs = await prisma.logEntry.findMany({
-      where: {
-        level: level as string,
-        source: source as string,
-        timestamp: {
-          gte: new Date(Date.now() - parseInt(hours as string) * 3600000)
-        }
-      },
-      orderBy: { timestamp: 'desc' },
-      take: 1000
-    });
-    
-    res.json(logs);
+    res.json(breakers);
   } catch (error) {
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get logs' 
+      error: error instanceof Error ? error.message : 'Failed to get circuit breakers' 
     });
   }
 });
 
-// Distributed tracing
-app.get('/api/traces', async (req, res) => {
-  try {
-    const { traceId } = req.query;
-    
-    const spans = await prisma.traceSpan.findMany({
-      where: { traceId: traceId as string },
-      orderBy: { startTime: 'asc' }
-    });
-    
-    res.json(spans);
-  } catch (error) {
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to get traces' 
-    });
-  }
-});
-
-// WebSocket events for real-time monitoring
+// WebSocket events for real-time job updates
 io.on('connection', (socket) => {
-  console.log('Client connected to monitoring service');
+  console.log('Client connected to queue service');
 
-  // Subscribe to service updates
-  socket.on('subscribe:service', (serviceName: string) => {
-    socket.join(`service:${serviceName}`);
+  socket.on('subscribe:queue', (queueName: string) => {
+    socket.join(`queue:${queueName}`);
   });
 
-  // Subscribe to alerts
-  socket.on('subscribe:alerts', () => {
-    socket.join('alerts');
-  });
-
-  // Subscribe to incidents
-  socket.on('subscribe:incidents', () => {
-    socket.join('incidents');
+  socket.on('subscribe:job', (jobId: string) => {
+    socket.join(`job:${jobId}`);
   });
 
   socket.on('disconnect', () => {
-    console.log('Client disconnected from monitoring service');
+    console.log('Client disconnected from queue service');
   });
 });
 
-// Listen for monitoring events
-monitoringService.on('alert', (alert) => {
-  io.to('alerts').emit('alert:new', alert);
-  if (alert.serviceId) {
-    io.to(`service:${alert.serviceId}`).emit('service:alert', alert);
-  }
-});
-
-// Real-time metric streaming
+// Emit job status updates
 setInterval(async () => {
-  const recentMetrics = await prisma.metric.findMany({
+  const recentJobs = await prisma.job.findMany({
     where: {
-      timestamp: {
+      updatedAt: {
         gte: new Date(Date.now() - 5000) // Last 5 seconds
       }
     }
   });
 
-  for (const metric of recentMetrics) {
-    if (metric.serviceId) {
-      io.to(`service:${metric.serviceId}`).emit('metric:update', metric);
-    }
+  for (const job of recentJobs) {
+    io.to(`job:${job.jobId}`).emit('job:update', job);
+    io.to(`queue:${job.queueId}`).emit('queue:job-update', job);
   }
 }, 5000);
 
@@ -574,21 +450,19 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-const PORT = process.env.PORT || 3042;
+const PORT = process.env.PORT || 3041;
 
 httpServer.listen(PORT, () => {
-  console.log(`Indigenous Monitoring Service running on port ${PORT}`);
+  console.log(`Indigenous Queue Service running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log('Features enabled:');
-  console.log('- Service health monitoring');
-  console.log('- Prometheus metrics collection');
-  console.log('- Indigenous priority alerts');
-  console.log('- Elder notification system');
-  console.log('- Ceremony impact assessment');
-  console.log('- Community-wide broadcasting');
-  console.log('- Incident management');
-  console.log('- SLA tracking');
-  console.log('- Distributed tracing');
+  console.log('- Multi-queue support (Bull, RabbitMQ, Kafka)');
+  console.log('- Indigenous priority handling');
+  console.log('- Elder request prioritization');
+  console.log('- Ceremony-aware scheduling');
+  console.log('- Seven generations impact tracking');
+  console.log('- Dead letter queue processing');
+  console.log('- Rate limiting and circuit breakers');
 });
 
 // Graceful shutdown

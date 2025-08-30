@@ -1,0 +1,31 @@
+{
+  "name": "@indigenous/tests",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:e2e": "jest --testPathPattern=e2e",
+    "test:ci": "jest --ci --coverage --maxWorkers=2",
+    "test:debug": "node --inspect-brk ./node_modules/.bin/jest --runInBand"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "resend": "^3.0.0",
+    "stripe": "^14.0.0",
+    "@temporalio/client": "^1.8.6",
+    "inngest": "^3.0.0",
+    "bullmq": "^5.0.0"
+  }
+}

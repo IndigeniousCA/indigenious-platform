@@ -1,0 +1,76 @@
+
+> @indigenious/auth@1.0.0 dev
+> tsx watch src/index.ts
+
+/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/api/routes.ts:14
+const verificationService = new IndigenousVerificationService();
+                            ^
+
+
+TypeError: import_indigenous_verification.IndigenousVerificationService is not a constructor
+    at <anonymous> (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/api/routes.ts:14:29)
+    at Object.<anonymous> (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/api/routes.ts:275:2)
+    at Module._compile (node:internal/modules/cjs/loader:1692:14)
+    at Object.transformer (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1427:32)
+    at Module._load (node:internal/modules/cjs/loader:1250:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1449:12)
+    at require (node:internal/modules/helpers:135:16)
+
+Node.js v24.3.0
+2:38:43 p.m. [tsx] change in ./src/services/indigenous-verification.ts Rerunning...
+cnode:internal/modules/cjs/loader:1369
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module 'pg'
+Require stack:
+- /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/utils/database.ts
+- /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/index.ts
+    at node:internal/modules/cjs/loader:1369:15
+    at nextResolveSimple (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1004)
+    at /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:3:2630
+    at /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:4:760)
+    at /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Module._load (node:internal/modules/cjs/loader:1179:37) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/utils/database.ts',
+    '/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/index.ts'
+  ]
+}
+
+Node.js v24.3.0
+2:39:08 p.m. [tsx] change in ./src/services/indigenous-verification.ts Rerunning...
+cnode:internal/modules/cjs/loader:1369
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module 'pg'
+Require stack:
+- /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/utils/database.ts
+- /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/index.ts
+    at node:internal/modules/cjs/loader:1369:15
+    at nextResolveSimple (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1004)
+    at /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:3:2630
+    at /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:4:760)
+    at /Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1102
+    at m._resolveFilename (file:///Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/node_modules/.pnpm/tsx@4.20.5/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1025:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1030:22)
+    at Module._load (node:internal/modules/cjs/loader:1179:37) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/utils/database.ts',
+    '/Users/Jon/Desktop/Unations/indigenious-microservices/indigenous-platform/services/auth/src/index.ts'
+  ]
+}
+
+Node.js v24.3.0

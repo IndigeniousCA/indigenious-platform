@@ -1,0 +1,31 @@
+{
+  "name": "@indigenious/business-hunter-swarm",
+  "version": "1.0.0",
+  "description": "AI-powered swarm to pre-populate 500K Canadian and Indigenous businesses",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.ts",
+    "deploy": "tsx src/deploy-swarm.ts",
+    "hunt": "tsx src/hunters/orchestrator.ts",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "playwright": "^1.40.1",
+    "cheerio": "^1.0.0-rc.12",
+    "p-queue": "^7.4.1",
+    "zod": "^3.22.4",
+    "openai": "^4.24.1",
+    "resend": "^3.0.0",
+    "axios": "^1.6.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.3"
+  }
+}
